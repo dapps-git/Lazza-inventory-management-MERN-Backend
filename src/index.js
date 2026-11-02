@@ -22,20 +22,48 @@ if (!process.env.JWT_SECRET) {
 }
 
 const app = express();
-app.use(cors({ origin: process.env.CLIENT_ORIGIN?.split(',') || true }));
+
+const allowedOrigins = process.env.CLIENT_ORIGIN
+  ? process.env.CLIENT_ORIGIN.split(',').map((o) => o.trim())
+  : null;
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        !allowedOrigins ||
+        allowedOrigins.includes('*') ||
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  })
+);
+app.options('*', cors());
 app.use(express.json({ limit: '1mb' }));
 
-app.get('/api/health', (req, res) => res.json({ ok: true, db: mongoose.connection.readyState === 1 }));
-app.use('/api/auth', authRoutes);
-app.use('/api/categories', protect, categoryRoutes);
-app.use('/api/products', protect, productRoutes);
-app.use('/api/shops', protect, shopRoutes);
-app.use('/api/sales', protect, saleRoutes);
-app.use('/api/payments', protect, paymentRoutes);
-app.use('/api/dashboard', protect, dashboardRoutes);
-app.use('/api/reports', protect, reportRoutes);
+const registerRoutes = (prefix = '') => {
+  app.get(`${prefix}/health`, (req, res) => res.json({ ok: true, db: mongoose.connection.readyState === 1 }));
+  app.use(`${prefix}/auth`, authRoutes);
+  app.use(`${prefix}/categories`, protect, categoryRoutes);
+  app.use(`${prefix}/products`, protect, productRoutes);
+  app.use(`${prefix}/shops`, protect, shopRoutes);
+  app.use(`${prefix}/sales`, protect, saleRoutes);
+  app.use(`${prefix}/payments`, protect, paymentRoutes);
+  app.use(`${prefix}/dashboard`, protect, dashboardRoutes);
+  app.use(`${prefix}/reports`, protect, reportRoutes);
+};
 
-app.use('/api', (req, res) => res.status(404).json({ message: 'Not found' }));
+// Support multiple mount points: default /api, subpath /laza_icecream, and root
+registerRoutes('/api');
+registerRoutes('/laza_icecream/api');
+registerRoutes('/laza_icecream');
+registerRoutes('');
 
 // Error handler: turns validation / duplicate errors into readable messages
 // eslint-disable-next-line no-unused-vars
