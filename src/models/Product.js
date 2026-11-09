@@ -4,8 +4,9 @@ const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     brand: { type: String, trim: true, default: 'Lazza' },
-    category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+    category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: false, default: null },
     price: { type: Number, required: true, min: 0 },
+    discountPercent: { type: Number, min: 0, max: 100, default: null },
     discountedPrice: { type: Number, min: 0, default: null },
     quantity: { type: Number, required: true, min: 0, default: 0 }, // available stock
     description: { type: String, trim: true, default: '' },

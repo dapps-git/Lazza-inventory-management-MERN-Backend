@@ -7,25 +7,40 @@ import { ah, HttpError, escapeRegex, round2 } from '../utils/helpers.js';
 const router = Router();
 
 function cleanProduct(body = {}) {
+  const price = round2(body.price);
+  let discountPercent = null;
+  let discountedPrice = null;
+
+  if (body.discountPercent !== '' && body.discountPercent !== null && body.discountPercent !== undefined) {
+    const pct = round2(body.discountPercent);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      throw new HttpError(400, 'Discount percentage must be between 0 and 100');
+    }
+    discountPercent = pct;
+    discountedPrice = pct > 0 ? round2(price * (1 - pct / 100)) : null;
+  } else if (body.discountedPrice !== '' && body.discountedPrice !== null && body.discountedPrice !== undefined) {
+    discountedPrice = round2(body.discountedPrice);
+    if (price > 0 && discountedPrice < price) {
+      discountPercent = round2(((price - discountedPrice) / price) * 100);
+    }
+  }
+
   const data = {
     name: String(body.name || '').trim(),
     brand: String(body.brand || 'Lazza').trim() || 'Lazza',
-    category: body.category,
-    price: round2(body.price),
-    discountedPrice:
-      body.discountedPrice === '' || body.discountedPrice === null || body.discountedPrice === undefined
-        ? null
-        : round2(body.discountedPrice),
+    category: body.category && mongoose.isValidObjectId(body.category) ? body.category : null,
+    price,
+    discountPercent,
+    discountedPrice,
     description: String(body.description || '').trim(),
   };
   if (!data.name) throw new HttpError(400, 'Product name is required');
-  if (!mongoose.isValidObjectId(data.category)) throw new HttpError(400, 'Please choose a category');
-  if (!Number.isFinite(data.price) || data.price < 0) throw new HttpError(400, 'Price must be 0 or more');
+  if (!Number.isFinite(data.price) || data.price < 0) throw new HttpError(400, 'Purchase / Sale rate must be 0 or more');
   if (data.discountedPrice !== null) {
     if (!Number.isFinite(data.discountedPrice) || data.discountedPrice < 0)
       throw new HttpError(400, 'Discounted price must be 0 or more');
     if (data.discountedPrice > data.price)
-      throw new HttpError(400, 'Discounted price cannot be more than the price');
+      throw new HttpError(400, 'Discounted price cannot be more than the rate');
   }
   return data;
 }
@@ -60,7 +75,7 @@ router.post(
     const data = cleanProduct(req.body);
     const qty = Number(req.body.quantity ?? 0);
     if (!Number.isInteger(qty) || qty < 0) throw new HttpError(400, 'Quantity must be a whole number, 0 or more');
-    if (!(await Category.exists({ _id: data.category }))) throw new HttpError(400, 'Category not found');
+    if (data.category && !(await Category.exists({ _id: data.category }))) throw new HttpError(400, 'Category not found');
     const product = await Product.create({ ...data, quantity: qty });
     res.status(201).json(await product.populate('category', 'name'));
   })
@@ -72,7 +87,7 @@ router.put(
   '/:id',
   ah(async (req, res) => {
     const data = cleanProduct(req.body);
-    if (!(await Category.exists({ _id: data.category }))) throw new HttpError(400, 'Category not found');
+    if (data.category && !(await Category.exists({ _id: data.category }))) throw new HttpError(400, 'Category not found');
     const product = await Product.findOneAndUpdate({ _id: req.params.id, isDeleted: false }, data, {
       new: true,
       runValidators: true,

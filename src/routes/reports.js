@@ -140,11 +140,10 @@ async function productSales(range) {
 }
 
 async function stock() {
-  const products = await Product.find({ isDeleted: false }).populate('category', 'name').sort({ name: 1 }).lean();
+  const products = await Product.find({ isDeleted: false }).sort({ name: 1 }).lean();
   const rows = products.map((p) => ({
     product: p.name,
     brand: p.brand,
-    category: p.category?.name || '',
     price: p.price,
     discountedPrice: p.discountedPrice ?? '',
     quantity: p.quantity,
@@ -154,7 +153,6 @@ async function stock() {
     columns: [
       { key: 'product', label: 'Product' },
       { key: 'brand', label: 'Brand' },
-      { key: 'category', label: 'Category' },
       { key: 'price', label: 'Price', type: 'money' },
       { key: 'discountedPrice', label: 'Disc. Price', type: 'money' },
       { key: 'quantity', label: 'Available Stock', type: 'number' },
